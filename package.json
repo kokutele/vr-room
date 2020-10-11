@@ -5,11 +5,28 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "flow": "flow"
   },
   "dependencies": {
+    "@ant-design/icons": "^4.2.2",
+    "@reduxjs/toolkit": "^1.4.0",
+    "antd": "^4.6.6",
+    "bowser": "^2.11.0",
+    "mediasoup-client": "^3.6.16",
     "next": "9.5.4",
+    "protoo-client": "^4.0.4",
+    "randomstring": "^1.1.5",
     "react": "16.13.1",
-    "react-dom": "16.13.1"
+    "react-dom": "16.13.1",
+    "react-redux": "^7.2.1",
+    "redux": "^4.0.5",
+    "redux-logger": "^3.0.6",
+    "three": "^0.121.1"
+  },
+  "devDependencies": {
+    "babel-eslint": "^10.1.0",
+    "babel-plugin-transform-flow-strip-types": "^6.22.0",
+    "flow-bin": "^0.135.0"
   }
 }

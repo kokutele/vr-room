@@ -1,0 +1,10 @@
+.room {
+  width: 100vw;
+  height: calc( 100vh - 2.5rem );
+  background-color: bisque;
+}
+
+.buttons {
+  position: absolute;
+  bottom: 0;
+}
