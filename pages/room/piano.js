@@ -17,7 +17,10 @@ import {
 } from '@ant-design/icons'
 
 import * as THREE from 'three'
+import ColladaLoader from 'three-collada-loader'
 // import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+
+import * as Tone from 'tone'
 
 import style from './piano.module.css'
 import { render } from 'react-dom'
@@ -27,8 +30,8 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
     // setup scene and camera
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera( 45, room.offsetWidth / room.offsetHeight, 1, 1280 )
-    camera.position.set( 0, 0, 100 )
-    camera.lookAt( 0, 0, 0 )
+    camera.position.set( 0, 2, 102 )
+    camera.lookAt( 0, -0.42, 0 )
     
     // setup renderer
     const renderer = new THREE.WebGLRenderer()
@@ -74,6 +77,242 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
     return { ctx, texture }
   }
 
+  let reqPianoId
+
+  function setupPiano( { scene, camera, renderer } ) {
+    const keyState = Object.freeze ({unpressed: {}, note_on: {}, pressed:{}, note_off:{} });
+    const keys_obj = []
+      , keys_down = []
+    const xRotation = -Math.PI / 2 // Math.PI / 6.0;
+    const controls = new function() {
+      this.key_attack_time = 9.0;
+      this.key_max_rotation = xRotation - Math.PI / 48;
+      this.octave = 2;
+      this.song = "game_of_thrones.mid";
+      this.noteOnColor = [255, 0, 0, 1.0];
+      this.play = function () {
+        // MIDI.Player.resume();
+      };
+      this.stop = function () {
+        // MIDI.Player.stop();
+      }
+    };
+    const noteOnColor = new THREE.Color().setRGB(controls.noteOnColor[0]/256.0, controls.noteOnColor[1]/256.0, controls.noteOnColor[2]/256.0);
+
+    const synth = new Tone.Synth().toDestination()
+
+    function prepare_scene( collada ) {
+      console.log( collada )
+      collada.scene.traverse(initialize_keys);
+      collada.scene.position.set( -5.5, -2, 91 )
+      scene.add(collada.scene);
+    }
+
+    function initialize_keys(obj) {
+      keys_obj.push(obj);
+      obj.rotation.x = xRotation;
+      obj.rotation.y = 0;
+      obj.rotation.z = 0;
+      obj.keyState = keyState.unpressed;
+      obj.clock = new THREE.Clock(false);
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+
+      // only add meshes in the material redefinition (to make keys change their color when pressed)
+      if (obj instanceof THREE.Mesh) {
+        const old_material = obj.material;
+        obj.material = new THREE.MeshPhongMaterial({ color: old_material.color });
+        obj.material.shininess = 35.0;
+        obj.material.specular = new THREE.Color().setRGB(0.25, 0.25, 0.25);;
+        obj.material.note_off = obj.material.color.clone();
+
+      }
+    }
+
+    function init_lights() {
+      //var spotlight = new THREE.SpotLight(0xffffff);
+      const spotlight = new THREE.DirectionalLight(0xffffff);
+
+      spotlight.position.set(1.0, 2.4, -7.5);
+      spotlight.target.position.set(6.0, -6, 7);
+      spotlight.shadowCameraVisible = false;
+      spotlight.shadowDarkness = 0.75;
+      spotlight.intensity = 1;
+      spotlight.castShadow = true;
+      spotlight.shadowMapWidth = 2048;
+      spotlight.shadowMapHeight = 2048;
+
+      spotlight.shadowCameraNear = 5.0;
+      spotlight.shadowCameraFar = 20.0;
+      spotlight.shadowBias = 0.0025;
+
+      spotlight.shadowCameraLeft = -8.85;
+      spotlight.shadowCameraRight = 5.5;
+      spotlight.shadowCameraTop = 4;
+      spotlight.shadowCameraBottom = 0;
+      scene.add(spotlight);
+
+      const light0 = new THREE.DirectionalLight(0xddffff, 0.5);
+      light0.position.set(1, 1, 1).normalize();
+      scene.add(light0);
+
+      const light1 = new THREE.DirectionalLight(0xff5555, 0.5);
+      light1.position.set(-1, -1, -1).normalize();
+      scene.add(light1);
+    }
+
+    function keyCode_to_note(keyCode) {
+      let note = -1;
+      //-----------------------------------
+      if (keyCode == 90) note = 0; // C 0
+      if (keyCode == 83) note = 1; // C#0
+      if (keyCode == 88) note = 2; // D 0
+      if (keyCode == 68) note = 3; // D#0
+      if (keyCode == 67) note = 4; // E 0
+      if (keyCode == 86) note = 5; // F 0
+      if (keyCode == 71) note = 6; // F#0
+      if (keyCode == 66) note = 7; // G 0
+      if (keyCode == 72) note = 8; // G#0
+      if (keyCode == 78) note = 9; // A 0
+      if (keyCode == 74) note = 10; // A#0
+      if (keyCode == 77) note = 11; // B 0
+      if (keyCode == 188) note = 12; // C 0
+
+      //-----------------------------------
+      if (keyCode == 81) note = 12; // C 1
+      if (keyCode == 50) note = 13; // C#1
+      if (keyCode == 87) note = 14; // D 1
+      if (keyCode == 51) note = 15; // D#1
+      if (keyCode == 69) note = 16; // E 1
+      if (keyCode == 82) note = 17; // F 1
+      if (keyCode == 53) note = 18; // F#1
+      if (keyCode == 84) note = 19; // G 1
+      if (keyCode == 54) note = 20; // G#1
+      if (keyCode == 89) note = 21; // A 1
+      if (keyCode == 55) note = 22; // A#1
+      if (keyCode == 85) note = 23; // B 1
+      //-----------------------------------
+      if (keyCode == 73) note = 24; // C 2
+      if (keyCode == 57) note = 25; // C#2
+      if (keyCode == 79) note = 26; // D 2
+      if (keyCode == 48) note = 27; // D#2
+      if (keyCode == 80) note = 28; // E 2
+      if (keyCode == 219) note = 29; // F 2
+      if (keyCode == 187) note = 30; // F#2
+      if (keyCode == 221) note = 31; // G 2
+      // //-----------------------------------
+
+      if (note == -1) return -1;
+
+      return ("_" + (note + controls.octave * 12));
+    }
+
+    function smoothstep(a, b, x) {
+      if (x < a) return 0.0;
+      if (x > b) return 1.0;
+      var y = (x - a) / (b - a);
+      return y * y * (3.0 - 2.0 * y);
+    }
+
+    function mix(a, b, x) {
+      return a + (b - a) * Math.min(Math.max(x, 0.0), 1.0);
+    } 
+
+    function key_status (keyName, status) {
+      const obj = scene.getObjectByName(keyName, true);
+      if (obj != undefined) {
+        obj.clock.start();
+        obj.clock.elapsedTime = 0;
+        obj.keyState = status;
+      }
+    }
+    window.onkeyup = function (ev) {
+      if (keys_down[ev.keyCode] == true) {
+        var note = keyCode_to_note(ev.keyCode);
+        key_status(note, keyState.note_off);
+        keys_down[ev.keyCode] = false;
+
+        const delay = 0; // play one note every quarter second
+        const _note = parseInt(note.substr(1)) + 21;
+        const velocity = 127;// how hard the note hits
+        // MIDI.setVolume(0, 127);
+        // MIDI.noteOff(0, note, delay + 0.08);
+      }
+
+    } 
+
+    window.onkeydown = function(ev) {
+      if (keys_down[ev.keyCode] != true) {
+        var note = keyCode_to_note(ev.keyCode);
+        if (note != -1) {
+          key_status(note, keyState.note_on);
+          keys_down[ev.keyCode] = true;
+
+          // const delay = 0; // play one note every quarter second
+          const midiNote = parseInt(note.substr(1)) + 36; 
+          const hz = ( 440 / 32 ) * Math.pow( 2, (( midiNote - 9 ) / 12))
+          // const velocity = 127; // how hard the note hits
+          // MIDI.setVolume(0, 127);
+          // MIDI.noteOn(0, note, velocity, delay);
+          synth.triggerAttackRelease( hz, "8n")
+        }
+      }
+    }     
+
+    function frame() {
+      reqPianoId = requestAnimationFrame(frame);
+
+      var delta = clock.getDelta();
+
+      update(delta);
+
+      render(delta);
+    }
+
+
+    function update_key(obj, delta) {
+      if (obj.keyState == keyState.note_on) {
+        obj.rotation.x = mix( xRotation, controls.key_max_rotation, smoothstep(0.0, 1.0, controls.key_attack_time * obj.clock.getElapsedTime()));
+        if (obj.rotation.x <= controls.key_max_rotation) {
+          obj.keyState = keyState.pressed;
+          obj.clock.elapsedTime = 0;
+        }
+        if( obj.children && obj.children[0].material ) {
+          obj.children[0].material.color = noteOnColor;
+        }
+      }
+      else if (obj.keyState == keyState.note_off) {
+        obj.rotation.x = mix(controls.key_max_rotation, xRotation, smoothstep(0.0, 1.0, controls.key_attack_time * obj.clock.getElapsedTime()));
+        if (obj.rotation.x >= xRotation) {
+          obj.keyState = keyState.unpressed;
+          obj.clock.elapsedTime = 0;
+        }
+        if( obj.children && obj.children[0].material ) {
+          obj.children[0].material.color = obj.children[0].material.note_off;
+        }
+      }
+    }
+
+    function update(delta) {
+      // cameraControls.update(delta);
+      for (let i in keys_obj) {
+        update_key(keys_obj[i], delta);
+      }
+    }
+
+    function render( delta ) {
+      renderer.render( scene, camera )
+    }
+
+    init_lights()
+    const loader = new ColladaLoader();
+    loader.load( '/assets/piano.dae', prepare_scene )
+
+    const clock = new THREE.Clock()
+
+    frame()
+  }
+
   const videoTracks = useSelector( selectVideoTracks )
 
   useEffect( () => {
@@ -81,10 +320,18 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
     const _stream = stream
     let reqId, _videos = []
 
-    if( _room && _stream) {
+    if( _room && _stream ) {
+      // WebGL の初期設定
       const { scene, camera, renderer} = init( _room )
+
+      // テスト用の三角線をセットする
       const line = setupLine( scene )
 
+      // ピアノのセット
+      setupPiano( {scene, camera, renderer} )
+
+      // redux stateに基づき、video表示用の canvas を生成すると
+      // ともに、video objectも生成
       _videos = videoTracks.map( ({ peerId, track }, idx) => {
         const {ctx, texture} = setupCanvas( scene, idx )
         const video = document.createElement('video') 
@@ -106,7 +353,8 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
         else if (line.position.z > 100) direction = -1
         line.position.z += direction
 
-        // animation - video
+        // 各video用の canvas に `drawImage` を用い、逐次
+        // 描画する
         _videos.forEach( ({ctx, texture, video}) => {
           texture.needsUpdate = true
           ctx.drawImage( video, 0, 0, 640, 480 )
@@ -120,8 +368,12 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
       // slow but simple way to remove all children;)
       if( _room ) _room.innerText = ''
       if( reqId ) {
-        console.log( reqId)
         cancelAnimationFrame(reqId)
+        reqId = undefined
+      }
+      if( reqPianoId ) {
+        cancelAnimationFrame( reqPianoId )
+        reqPianoId = undefined
       }
       _videos.forEach( item => {
         delete item.texture
@@ -152,9 +404,19 @@ export default function PianoRoom():React.Node {
   useVRRoom(room, stream)
 
   useEffect( () => {
+    let _peer
     if( stream ) {
       join({ dispatch, roomName: 'test', stream, scalable: 'simple'})
-        .then( peer => console.log(peer))
+        .then( peer => _peer = peer )
+    }
+
+    return function cleanup() {
+      if( _peer ) {
+        _peer.close()
+      }
+      if( stream ) {
+        stream.getTracks().forEach( t => t.stop() )
+      }
     }
   }, [stream])
 

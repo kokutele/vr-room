@@ -22,7 +22,9 @@
     "react-redux": "^7.2.1",
     "redux": "^4.0.5",
     "redux-logger": "^3.0.6",
-    "three": "^0.121.1"
+    "three": "^0.121.1",
+    "three-collada-loader": "0.0.1",
+    "tone": "^14.7.58"
   },
   "devDependencies": {
     "babel-eslint": "^10.1.0",
