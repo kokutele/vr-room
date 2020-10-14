@@ -70,7 +70,7 @@ type joinProps = {
   dispatch: Function;
   stream: MediaStream;
 }
-export async function join(props:joinProps):Peer {
+export async function join(props:joinProps):Object {
   const peerId = randomstring.generate({
     length: 8,
     capitalization: 'lowercase'
@@ -130,8 +130,8 @@ export async function join(props:joinProps):Peer {
       if( kind === "audio" ) {
         const receiver = consumer.rtpReceiver
         const receiverStreams = receiver.createEncodedStreams()
-        const readableStream = receiverStreams.readableStream
-        const writableStream = receiverStreams.writableStream
+        const readableStream = receiverStreams.readable
+        const writableStream = receiverStreams.writable
 
         const transformStream = new TransformStream({
           transform: ( chunk, controller ) => {
@@ -192,8 +192,8 @@ export async function join(props:joinProps):Peer {
       console.log('===== consumer ========')
       console.log( notification.method )
       console.log( notification.data )
-      if( notification.method === 'consumerLayersChanged')
-        dispatch( setConsumerLayer(notification.data) )
+      // if( notification.method === 'consumerLayersChanged')
+        // dispatch( setConsumerLayer(notification.data) )
     } else if( notification.method === "activeSpeaker" ) {
       // const { peerId, volume } = notification.data
       // console.log('===== activeSpeaker notification =====', peerId, volume)
@@ -263,7 +263,7 @@ const _joinRoom = async (
       sctpParameters,
       iceServers: [],
       additionalSettings: {
-        forceEncodedAudioInsertableStreams: true
+        encodedInsertableStreams: true
       },
       proprietaryConstraints: { optional: [ { googDscp: true } ] }
     })
@@ -312,7 +312,7 @@ const _joinRoom = async (
       sctpParameters,
       iceServers: [],
       additionalSettings: {
-        forceEncodedAudioInsertableStreams: true
+        encodedInsertableStreams: true
       },
     })
 
@@ -392,8 +392,8 @@ const _joinRoom = async (
 
     const sender = audioProducer.rtpSender
     const senderStream = sender.createEncodedStreams()
-    const readableStream = senderStream.readableStream
-    const writableStream = senderStream.writableStream
+    const readableStream = senderStream.readable
+    const writableStream = senderStream.writable
     console.log( sender, senderStream )
     let data = 0
 

@@ -5,9 +5,9 @@ import { useDispatch, useSelector } from 'react-redux'
 import Head from 'next/head'
 import Layout, { siteTitle } from '../../components/layout'
 
-import { join } from './libs/mediasoup-handler'
+// import { join } from './libs/mediasoup-handler'
 
-import { selectAudioTracks, selectVideoTracks } from './room-slice'
+import { selectAudioTracks, selectVideoTracks, addTrack } from '../../slices/room-slice'
 
 import {
   Button
@@ -26,22 +26,36 @@ import style from './piano.module.css'
 import { render } from 'react-dom'
 
 function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
+  const thetas = [ 15, 45, 75, 105, 135, 165 ]
+  // const thetas = [ 0, 45, 90, 135, 180 ] // , 105, 135, 165 ]
+  const r = 90 
   function init( room:HTMLElement ):{ scene:THREE.Scene, camera: THREE.Camera, renderer: THREE.WebGL1Renderer} {
     // setup scene and camera
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera( 45, room.offsetWidth / room.offsetHeight, 1, 1280 )
-    camera.position.set( 0, 2, 102 )
+    camera.position.set( 4, 2, r + 12 )
     camera.lookAt( 0, -0.42, 0 )
+
+    const ambiLight = new THREE.AmbientLight( 0x0c0c0c )
+    scene.add(ambiLight)
     
     // setup renderer
     const renderer = new THREE.WebGLRenderer()
+    //renderer.setClearColor( 0x140909 )
+    renderer.setClearColor( 0x000000 )
     renderer.setSize( room.offsetWidth, room.offsetHeight )
+    renderer.shadowMap.enabled = true
 
     room.appendChild( renderer.domElement )
 
     return {
       scene, camera, renderer
     }
+  }
+
+  function setupAxes( scene:THREE.Scene ):void {
+    const axes = new THREE.AxisHelper(50)
+    scene.add( axes )
   }
 
   function setupLine( scene:THREE.Scene ):THREE.Line {
@@ -59,8 +73,54 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
     return line
   }
 
+  function setupPlane( scene ) {
+    const geometry = new THREE.CircleGeometry( 2 * r, 250 )
+    // const geometry = new THREE.PlaneGeometry( 3 * r,  3 * r )
+    const material = new THREE.MeshLambertMaterial({ color: 0x0a0a0a })
+    // const material = new THREE.MeshBasicMaterial({ color: 0xffffff })
+    const plane = new THREE.Mesh( geometry, material )
+    plane.rotateX( -Math.PI / 2 )
+    plane.position.y = -20
+    plane.receiveShadow = true
+
+    scene.add( plane )
+
+  }
+  function setupCubes( scene, theta ) {
+    const k = 1, rb = 10
+
+    const geometry = new THREE.BoxGeometry( rb, rb * 1.2, rb )
+    const material = new THREE.MeshLambertMaterial({
+      color: 0xffffff
+    })
+
+    const cube = new THREE.Mesh( geometry, material )
+    cube.rotateY( ( -90 + theta ) * Math.PI / 180 )
+    cube.position.x = r * Math.cos( -theta * Math.PI / 180 )
+    cube.position.y = -15
+    cube.position.z = r * Math.sin( -theta * Math.PI / 180 )
+    cube.castShadow = true
+
+    scene.add( cube )
+
+    const color = 0xf62008
+    //const color = 0x00ffff
+    const spotLight = new THREE.SpotLight( color )
+    spotLight.position.set( 
+      r * k * Math.cos( -theta * Math.PI / 180),
+      100,
+      r * k * Math.sin( -theta * Math.PI / 180),
+    )
+    spotLight.angle = Math.PI / 4
+    spotLight.target = cube
+    spotLight.castShadow = true
+    scene.add( spotLight )
+ 
+  }
+
   function setupCanvas( scene:THREE.Scene, idx:number ):{ctx: CanvasRenderingContext2D, texture: THREE.Texture} {
     // canvas
+    const theta = thetas[idx]
     const canvas = document.createElement('canvas')
     canvas.width = 640
     canvas.height = 480
@@ -69,9 +129,15 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
     const geometry = new THREE.PlaneGeometry(32, 24)
     const material = new THREE.MeshBasicMaterial( {map: texture} )
     const mesh = new THREE.Mesh( geometry, material )
-    mesh.rotateY( idx % 2 === 0 ? Math.PI / 2 : -1 * Math.PI / 2 )
-    mesh.position.x = idx % 2 === 0 ? -50 : 50
-    mesh.position.z = -35 * Math.floor( idx / 2 )
+    // mesh.rotateY( idx % 2 === 0 ? Math.PI / 2 : -1 * Math.PI / 2 )
+    // mesh.rotateY( (-theta) * Math.PI / 180)
+    mesh.rotateY( ( -90 + theta ) * Math.PI / 180 )
+    mesh.position.x = r * Math.cos( -theta * Math.PI / 180 )
+    mesh.position.y = 10
+    mesh.position.z = r * Math.sin( -theta * Math.PI / 180 )
+    mesh.castShadow = true
+    // mesh.position.x = idx % 2 === 0 ? -50 : 50
+    // mesh.position.z = -35 * Math.floor( idx / 2 )
     scene.add(mesh)
 
     return { ctx, texture }
@@ -104,8 +170,11 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
     function prepare_scene( collada ) {
       console.log( collada )
       collada.scene.traverse(initialize_keys);
-      collada.scene.position.set( -5.5, -2, 91 )
+      collada.scene.position.set( -5.5, -2, r )
+      collada.scene.castShadow = true
       scene.add(collada.scene);
+
+      init_lights( collada.scene )
     }
 
     function initialize_keys(obj) {
@@ -129,39 +198,42 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
       }
     }
 
-    function init_lights() {
+    function init_lights( target ) {
       //var spotlight = new THREE.SpotLight(0xffffff);
-      const spotlight = new THREE.DirectionalLight(0xffffff);
+      const spotlight = new THREE.SpotLight(0xffffff);
 
-      spotlight.position.set(1.0, 2.4, -7.5);
-      spotlight.target.position.set(6.0, -6, 7);
-      spotlight.shadowCameraVisible = false;
-      spotlight.shadowDarkness = 0.75;
-      spotlight.intensity = 1;
+      spotlight.position.set( -5.5, 10, r )
+      //spotlight.position.set(1.0, 2.4, -7.5);
+      //spotlight.position.set( -5.5, -2, r )
+      //spotlight.target.position.set(6.0, -6, 7);
+      spotlight.target = target
+      // spotlight.shadowCameraVisible = false;
+      // spotlight.shadowDarkness = 0.75;
+      //spotlight.intensity = 1;
       spotlight.castShadow = true;
-      spotlight.shadowMapWidth = 2048;
-      spotlight.shadowMapHeight = 2048;
+      // spotlight.shadowMapWidth = 2048;
+      // spotlight.shadowMapHeight = 2048;
 
-      spotlight.shadowCameraNear = 5.0;
-      spotlight.shadowCameraFar = 20.0;
-      spotlight.shadowBias = 0.0025;
+      // spotlight.shadowCameraNear = 5.0;
+      // spotlight.shadowCameraFar = 20.0;
+      // spotlight.shadowBias = 0.0025;
 
-      spotlight.shadowCameraLeft = -8.85;
-      spotlight.shadowCameraRight = 5.5;
-      spotlight.shadowCameraTop = 4;
-      spotlight.shadowCameraBottom = 0;
+      // spotlight.shadowCameraLeft = -8.85;
+      // spotlight.shadowCameraRight = 5.5;
+      // spotlight.shadowCameraTop = 4;
+      // spotlight.shadowCameraBottom = 0;
       scene.add(spotlight);
 
-      const light0 = new THREE.DirectionalLight(0xddffff, 0.5);
-      light0.position.set(1, 1, 1).normalize();
-      scene.add(light0);
+      // const light0 = new THREE.DirectionalLight(0xddffff, 0.5);
+      // light0.position.set(1, 1, 1).normalize();
+      // scene.add(light0);
 
-      const light1 = new THREE.DirectionalLight(0xff5555, 0.5);
-      light1.position.set(-1, -1, -1).normalize();
-      scene.add(light1);
+      // const light1 = new THREE.DirectionalLight(0xff5555, 0.5);
+      // light1.position.set(-1, -1, -1).normalize();
+      // scene.add(light1);
     }
 
-    function keyCode_to_note(keyCode) {
+    function keyCode_to_note(keyCode):number {
       let note = -1;
       //-----------------------------------
       if (keyCode == 90) note = 0; // C 0
@@ -228,7 +300,7 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
     }
     window.onkeyup = function (ev) {
       if (keys_down[ev.keyCode] == true) {
-        var note = keyCode_to_note(ev.keyCode);
+        const note = keyCode_to_note(ev.keyCode);
         key_status(note, keyState.note_off);
         keys_down[ev.keyCode] = false;
 
@@ -243,7 +315,7 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
 
     window.onkeydown = function(ev) {
       if (keys_down[ev.keyCode] != true) {
-        var note = keyCode_to_note(ev.keyCode);
+        const note = keyCode_to_note(ev.keyCode);
         if (note != -1) {
           key_status(note, keyState.note_on);
           keys_down[ev.keyCode] = true;
@@ -304,9 +376,9 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
       renderer.render( scene, camera )
     }
 
-    init_lights()
     const loader = new ColladaLoader();
     loader.load( '/assets/piano.dae', prepare_scene )
+    //init_lights()
 
     const clock = new THREE.Clock()
 
@@ -325,33 +397,56 @@ function useVRRoom(room:React.RefObject, stream: React.RefObject):void {
       const { scene, camera, renderer} = init( _room )
 
       // テスト用の三角線をセットする
-      const line = setupLine( scene )
+      let line
+      // const line = setupLine( scene )
+      // setupAxes( scene )
+
+      setupPlane( scene )
+
+      for( let theta of thetas ) {
+        setupCubes( scene, theta )
+      }
 
       // ピアノのセット
       setupPiano( {scene, camera, renderer} )
 
       // redux stateに基づき、video表示用の canvas を生成すると
       // ともに、video objectも生成
-      _videos = videoTracks.map( ({ peerId, track }, idx) => {
-        const {ctx, texture} = setupCanvas( scene, idx )
-        const video = document.createElement('video') 
-        const stream = new MediaStream([track])
-        video.srcObject = stream
-        video.autoplay = true
+      if( videoTracks.length > 0 ) {
+        const { peerId, track } = videoTracks[0]
 
-        return {
-          peerId, ctx, texture, video, idx
+        for( let idx = 0; idx < thetas.length; idx++ ) {
+          const { ctx, texture } = setupCanvas( scene, idx )
+          const video = document.createElement('video')
+          const stream = new MediaStream([track])
+          video.srcObject = stream
+          video.autoplay = true
+
+          _videos.push( {peerId, ctx, texture, video, idx} )
         }
-      })
+      }
+      //_videos = videoTracks.map( ({ peerId, track }, idx) => {
+      //  const {ctx, texture} = setupCanvas( scene, idx )
+      //  const video = document.createElement('video') 
+      //  const stream = new MediaStream([track])
+      //  video.srcObject = stream
+      //  video.autoplay = true
+
+      //  return {
+      //    peerId, ctx, texture, video, idx
+      //  }
+      //})
 
       let direction = 1
       function animation() {
         reqId = requestAnimationFrame(animation)
 
         // animation - line
-        if (line.position.z < -320) direction = 1
-        else if (line.position.z > 100) direction = -1
-        line.position.z += direction
+        if( line ) {
+          if (line.position.z < -320) direction = 1
+          else if (line.position.z > 100) direction = -1
+          line.position.z += direction
+        }
 
         // 各video用の canvas に `drawImage` を用い、逐次
         // 描画する
@@ -401,24 +496,48 @@ export default function PianoRoom():React.Node {
   const audioTracks = useSelector( selectAudioTracks )
 
   useVideo(setStream)
+
   useVRRoom(room, stream)
 
-  useEffect( () => {
-    let _peer
+  // test
+  useEffect(() => {
     if( stream ) {
-      join({ dispatch, roomName: 'test', stream, scalable: 'simple'})
-        .then( peer => _peer = peer )
-    }
+      const  [ videoTrack ] = stream.getVideoTracks()
+      dispatch(addTrack({
+        id: "test-video", 
+        track: videoTrack, 
+        peerId: "localId", 
+        type: "producer"
+      }))
 
-    return function cleanup() {
-      if( _peer ) {
-        _peer.close()
-      }
-      if( stream ) {
-        stream.getTracks().forEach( t => t.stop() )
-      }
+      const  [ audioTrack ] = stream.getAudioTracks()
+      dispatch(addTrack({
+        id: "test-audio", 
+        track: audioTrack, 
+        peerId: "localId", 
+        type: "producer"
+      }))
     }
   }, [stream])
+
+
+
+  // useEffect( () => {
+  //   let _peer
+  //   if( stream ) {
+  //     join({ dispatch, roomName: 'test', stream, scalable: 'simple'})
+  //       .then( peer => _peer = peer )
+  //   }
+
+  //   return function cleanup() {
+  //     if( _peer ) {
+  //       _peer.close()
+  //     }
+  //     if( stream ) {
+  //       stream.getTracks().forEach( t => t.stop() )
+  //     }
+  //   }
+  // }, [stream])
 
   return (
     <Layout>

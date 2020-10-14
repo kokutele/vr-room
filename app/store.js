@@ -1,7 +1,7 @@
 import { combineReducers } from 'redux'
 import { configureStore, getDefaultMiddleware } from '@reduxjs/toolkit'
 //import logger from 'redux-logger'
-import roomSliceReducer from '../pages/room/room-slice'
+import roomSliceReducer from '../slices/room-slice'
 
 const rootReducer = combineReducers({
   room: roomSliceReducer

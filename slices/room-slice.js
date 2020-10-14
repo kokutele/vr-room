@@ -41,7 +41,7 @@ type MemberState = {
 
 type trackIdsProps = {
   id: string;
-  peerid: string;
+  peerId: string;
   type: string; // `producer` or `consumer`
 }
 
